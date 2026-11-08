@@ -2,6 +2,10 @@
 
 Monitoring of credit risk models registered in **MLflow on DagsHub**. The script loads the latest model versions from the MLflow Model Registry, recalculates quality metrics on the train and out-of-time test samples — overall and **by month** — applies traffic-light thresholds and builds an interactive **HTML dashboard**, published to **GitHub Pages** by GitHub Actions.
 
+**[Live dashboard](https://iuliakogoleva.github.io/credit-risk-model-monitoring/)** — English and Russian.
+
+[![Monitoring dashboard](https://iuliakogoleva.github.io/credit-risk-model-monitoring/preview.png)](https://iuliakogoleva.github.io/credit-risk-model-monitoring/)
+
 Companion project to [credit-risk-models](https://github.com/IuliaKogoleva/credit-risk-models), where the models are trained on a synthetic consumer loan portfolio.
 
 > **All data are synthetic** and do not relate to any real bank or borrower.
@@ -39,8 +43,11 @@ Default thresholds (warning / alert): Gini drop > 10% / 20%; PSI > 0.10 / 0.25; 
 
 One tab per model with a status indicator. Each tab shows model metadata (version, algorithm, registration date, link to the MLflow run), headline metrics for train and test, traffic lights, four monthly charts with the out-of-time period shaded, and a full monthly metrics table. Light and dark themes, works on mobile.
 
-After the first workflow run the dashboard is available at
-`https://iuliakogoleva.github.io/credit-risk-model-monitoring/`.
+The page is bilingual: **EN / RU** switch in the top-right corner. The language can also be set in the link — `?lang=en` or `?lang=ru`; otherwise the browser language is used.
+
+For link previews (LinkedIn, Telegram, Slack) the page carries Open Graph tags, and the workflow saves a 1200×627 screenshot as `preview.png` (`src/preview.py`, Playwright). If LinkedIn shows an old preview, refresh it in [LinkedIn Post Inspector](https://www.linkedin.com/post-inspector/).
+
+Dashboard: `https://iuliakogoleva.github.io/credit-risk-model-monitoring/`
 
 ## Repository structure
 
@@ -49,7 +56,8 @@ credit-risk-model-monitoring/
 ├── src/
 │   ├── monitoring.py     # load models from MLflow, compute metrics, build report
 │   ├── features.py       # data preparation (same logic as in credit-risk-models)
-│   └── dashboard.py      # HTML dashboard (Chart.js)
+│   ├── dashboard.py      # HTML dashboard (Chart.js), EN/RU
+│   └── preview.py        # 1200×627 screenshot for link previews (Playwright)
 ├── docs/                 # generated report (index.html, metrics CSV/JSON)
 ├── .github/workflows/monitoring.yml
 ├── requirements.txt
@@ -60,7 +68,7 @@ credit-risk-model-monitoring/
 
 1. **Secrets:** Settings → Secrets and variables → Actions → add `DAGSHUB_USER`, `DAGSHUB_REPO` (`credit-risk-models` — the DagsHub repository where the models are registered) and `DAGSHUB_TOKEN`.
 2. **GitHub Pages:** Settings → Pages → *Build and deployment* → Source: **GitHub Actions**.
-3. **Run:** Actions → *model-monitoring* → **Run workflow**. The workflow also runs automatically on the 1st of every month.
+3. **Run:** Actions → *model-monitoring* → **Run workflow**. The workflow also runs automatically on the 1st of every month and after every change to `src/` or the workflow.
 
 The report is published to GitHub Pages and saved as the `monitoring-report` artifact of the run.
 
@@ -79,7 +87,12 @@ python src/monitoring.py --log-to-mlflow         # also log the report to MLflow
 python src/monitoring.py --local-mlflow ../credit-risk-models/mlruns   # local MLflow instead of DagsHub
 ```
 
-Open `docs/index.html` in a browser.
+Open `docs/index.html` in a browser. Optional link-preview image:
+
+```bash
+pip install playwright && python -m playwright install chromium
+python src/preview.py
+```
 
 ## Notes
 
@@ -91,7 +104,7 @@ Open `docs/index.html` in a browser.
 
 ## Кратко на русском
 
-Мониторинг моделей PD, LGD-12 и LGD-24 из проекта [credit-risk-models](https://github.com/IuliaKogoleva/credit-risk-models). Скрипт загружает последние версии моделей из MLflow Model Registry на DagsHub и считает показатели качества на обучающей и тестовой выборках, в целом и по месяцам: PD — по месяцу выдачи, LGD — по месяцу дефолта. Затем выставляет «светофор» по порогам и строит HTML-дашборд. GitHub Actions запускает мониторинг вручную или раз в месяц и публикует дашборд на GitHub Pages. Данные полностью синтетические.
+Мониторинг моделей PD, LGD-12 и LGD-24 из проекта [credit-risk-models](https://github.com/IuliaKogoleva/credit-risk-models). Скрипт загружает последние версии моделей из MLflow Model Registry на DagsHub и считает показатели качества на обучающей и тестовой выборках, в целом и по месяцам: PD — по месяцу выдачи, LGD — по месяцу дефолта. Затем выставляет «светофор» по порогам и строит HTML-дашборд на английском и русском (переключатель EN / RU). GitHub Actions запускает мониторинг вручную или раз в месяц и публикует дашборд на GitHub Pages. Данные полностью синтетические.
 
 ## Author
 

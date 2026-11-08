@@ -6,7 +6,7 @@
   2) готовит данные условного портфеля так же, как при обучении;
   3) считает показатели качества на обучающей и тестовой выборках — в целом и по месяцам
      (PD — по месяцу выдачи, LGD — по месяцу дефолта);
-  4) выставляет «светофор» по порогам и строит HTML-дашборд docs/index.html;
+  4) выставляет «светофор» по порогам и строит HTML-дашборд docs/index.html (EN/RU);
   5) по желанию логирует результаты мониторинга в MLflow.
 
 Запуск:
@@ -31,6 +31,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATA = 'https://github.com/IuliaKogoleva/credit-risk-models/raw/main/data/consumer_loans_portfolio.xlsx'
 MODELS = ['pd_model', 'lgd12_model', 'lgd24_model']
 MIN_N = 20                     # минимум наблюдений в месяце для ранговых метрик
+AUTHOR = 'Iulia Kogoleva'
+LINKEDIN = 'https://www.linkedin.com/in/iulia-kogoleva'
+DEFAULT_REPO = 'IuliaKogoleva/credit-risk-model-monitoring'
 
 # пороги светофора
 TH = {
@@ -39,6 +42,7 @@ TH = {
     'calib':      (0.20, 0.35),   # |прогноз/факт − 1| для PD
     'lgd_bias':   (0.05, 0.10),   # |смещение| прогноза LGD, доли
     'spearman':   (0.30, 0.15),   # чем меньше, тем хуже: <0.30 жёлтый, <0.15 красный
+    'mae_growth': (0.25, 0.50),   # относительный рост MAE теста к обучению (LGD)
 }
 
 
@@ -174,10 +178,11 @@ def evaluate(models, L, M, C):
     monthly = [{'month': mo, 'split': g['split'].iloc[0], **pd_metrics(g, g['p'].values, base)} for mo, g in df.groupby('month')]
     tr, te = overall['train'], overall['test']
     drop = (tr['gini'] - te['gini']) / tr['gini'] if tr['gini'] else np.nan
+    # ключи светофоров стабильны; подписи на EN/RU задаются в dashboard.py
     res['pd_model'] = dict(kind='pd', overall=overall, monthly=monthly, lights={
-        'Gini, падение тест/обучение': (drop, light(drop, *TH['gini_drop'])),
-        'PSI скоринга (тест к обучению)': (te['psi'], light(te['psi'], *TH['psi'])),
-        'Калибровка: |PD/DR − 1| (тест)': (abs(te['calib_ratio'] - 1), light(abs(te['calib_ratio'] - 1), *TH['calib']))})
+        'gini_drop': (drop, light(drop, *TH['gini_drop'])),
+        'psi': (te['psi'], light(te['psi'], *TH['psi'])),
+        'calib': (abs(te['calib_ratio'] - 1), light(abs(te['calib_ratio'] - 1), *TH['calib']))})
 
     # ---- LGD
     lgd12, lgd24 = F.build_lgd(L, M, C)
@@ -191,11 +196,11 @@ def evaluate(models, L, M, C):
         overall = {s: lgd_metrics(g, g['p'].values, kind) for s, g in d.groupby('split')}
         monthly = [{'month': mo, 'split': g['split'].iloc[0], **lgd_metrics(g, g['p'].values, kind)} for mo, g in d.groupby('month')]
         te = overall['test']
+        growth = (te['mae'] - overall['train']['mae']) / overall['train']['mae']
         res[name] = dict(kind=kind, overall=overall, monthly=monthly, lights={
-            'Смещение прогноза (тест), |п. п.|': (abs(te['bias']), light(abs(te['bias']), *TH['lgd_bias'])),
-            'Ранговая связь Спирмена (тест)': (te['spearman'], light(te['spearman'], *TH['spearman'], higher_is_worse=False)),
-            'MAE: рост тест/обучение': ((te['mae'] - overall['train']['mae']) / overall['train']['mae'],
-                                        light((te['mae'] - overall['train']['mae']) / overall['train']['mae'], 0.25, 0.50))})
+            'lgd_bias': (abs(te['bias']), light(abs(te['bias']), *TH['lgd_bias'])),
+            'spearman': (te['spearman'], light(te['spearman'], *TH['spearman'], higher_is_worse=False)),
+            'mae_growth': (growth, light(growth, *TH['mae_growth']))})
     return res
 
 
@@ -229,7 +234,14 @@ def main():
     ap.add_argument('--version', action='append', default=[], help='конкретная версия, например pd_model=2')
     ap.add_argument('--log-to-mlflow', action='store_true', help='залогировать отчёт в эксперимент model-monitoring')
     ap.add_argument('--out', default=str(ROOT / 'docs'))
+    ap.add_argument('--site-url', default=None, help='публичный адрес дашборда (для превью ссылок); '
+                    'по умолчанию — GitHub Pages репозитория')
     a = ap.parse_args()
+    repo = os.environ.get('GITHUB_REPOSITORY', DEFAULT_REPO)
+    owner, name = repo.split('/', 1)
+    site_url = a.site_url or f'https://{owner.lower()}.github.io/{name}/'
+    if not site_url.endswith('/'):
+        site_url += '/'
 
     mlflow, uri = connect_mlflow(a.local_mlflow)
     versions = dict(v.split('=') for v in a.version)
@@ -242,9 +254,10 @@ def main():
     monthly.to_csv(out / 'metrics_monthly.csv', index=False)
     overall.to_csv(out / 'metrics_overall.csv', index=False)
     payload = clean({'generated': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC'), 'data_source': a.data,
-                     'thresholds': TH, 'models': {n: {**res[n], 'meta': models[n]['meta']} for n in MODELS}})
+                     'thresholds': TH, 'links': {'author': AUTHOR, 'linkedin': LINKEDIN, 'repo': f'https://github.com/{repo}'},
+                     'models': {n: {**res[n], 'meta': models[n]['meta']} for n in MODELS}})
     (out / 'metrics.json').write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding='utf8')
-    build_dashboard(payload, out / 'index.html')
+    build_dashboard(payload, out / 'index.html', site_url=site_url)
     print('Дашборд:', out / 'index.html')
 
     if a.log_to_mlflow:

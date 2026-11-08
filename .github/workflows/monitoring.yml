@@ -9,6 +9,12 @@ on:
         default: false
   schedule:
     - cron: "0 6 1 * *"        # 1-го числа каждого месяца, 06:00 UTC
+  push:                        # пересобрать дашборд при изменении кода
+    branches: [main]
+    paths:
+      - "src/**"
+      - "requirements.txt"
+      - ".github/workflows/monitoring.yml"
 
 permissions:
   contents: read
@@ -47,6 +53,13 @@ jobs:
           else
             python src/monitoring.py
           fi
+
+      - name: Link-preview image (og:image for LinkedIn and messengers)
+        continue-on-error: true      # без картинки дашборд всё равно публикуется
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+          python src/preview.py docs
 
       - name: Save metrics
         if: always()
