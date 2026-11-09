@@ -108,4 +108,4 @@ python src/preview.py
 
 ## Author
 
-Iulia Kogoleva — [github.com/IuliaKogoleva](https://github.com/IuliaKogoleva)
+Iulia Kogoleva — model risk and data science in banking · [LinkedIn](https://www.linkedin.com/in/iulia-kogoleva) · [GitHub](https://github.com/IuliaKogoleva)
